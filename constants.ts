@@ -44,11 +44,11 @@ export const CRATER_DURATION_MS = 120000; // 2 minutes
 export const ZOMBIE_DETECTION_RADIUS = 350;
 export const ZOMBIE_SOUND_INVESTIGATION_RADIUS = 600;
 
-export const ZOMBIE_STATS: { [key: string]: { color: string; size: number; hp: number; damage: number; speed: number; spawnChance?: number; projectileDamage?: number; slowAttack?: { duration: number, factor: number } } } = {
+export const ZOMBIE_STATS: { [key: string]: { color: string; size: number; hp: number; damage: number; speed: number; spawnChance?: number; slowAttack?: { duration: number, factor: number } } } = {
     NORMAL: { color: '#2C5F2D', size: 40, hp: 50, damage: 5, speed: 2, spawnChance: 0.8 },
     GIANT: { color: '#1A3A1A', size: 60, hp: 150, damage: 15, speed: 1.5, spawnChance: 0.15 },
     IMMORTAL: { color: '#0A1A0A', size: 45, hp: 500, damage: 10, speed: 2.5, spawnChance: 0.05 },
-    BOSS: { color: '#8B0000', size: 150, hp: 1000, damage: 30, speed: 1, projectileDamage: 20 },
+    BOSS: { color: '#8B0000', size: 150, hp: 1000, damage: 30, speed: 1 },
     RUBY: { color: '#E0115F', size: 50, hp: 200, damage: 20, speed: 2.2, spawnChance: 1.0 },
     DESERT: { color: '#C2B280', size: 40, hp: 40, damage: 5, speed: 2.8 },
     SNOW: { color: '#ADD8E6', size: 45, hp: 70, damage: 7, speed: 1.8, slowAttack: { duration: 3000, factor: 0.5 } },
