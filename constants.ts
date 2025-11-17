@@ -85,6 +85,7 @@ export const RESOURCE_DATA: { [key in ResourceType | string]: { color: string; r
     [ResourceType.RUBY]: { color: '#DC143C', requiredTier: ToolTier.DIAMOND, baseCollectTime: 15000 },
     [ResourceType.RUBY_CRYSTAL]: { color: '#FF69B4', requiredTier: ToolTier.DIAMOND, baseCollectTime: 12000 },
     'wood': { color: '#D2B48C', requiredTier: ToolTier.HAND, baseCollectTime: 1000 }, // For refined wood blocks
+    'indestructible': { color: '#1C1C1E', requiredTier: ToolTier.RUBY, baseCollectTime: Infinity },
 };
 
 // FIX: Added 'color' property to the BIOME_DATA type to match the object's structure.
@@ -105,6 +106,7 @@ export const BLOCK_HP: { [key: string]: number } = {
     'gold': 80,
     'diamond': 90,
     'ruby': 100,
+    'indestructible': Infinity,
 };
 
 export const ITEMS: { [id: string]: Item | Tool | Armor | Consumable } = {
@@ -191,6 +193,7 @@ export const ITEMS: { [id: string]: Item | Tool | Armor | Consumable } = {
     'gold_block': { id: 'gold_block', name: 'Gold Block', name_pt: 'Bloco de Ouro', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
     'diamond_block': { id: 'diamond_block', name: 'Diamond Block', name_pt: 'Bloco de Diamante', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
     'ruby_block': { id: 'ruby_block', name: 'Ruby Block', name_pt: 'Bloco de Rubi', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
+    'indestructible_block': { id: 'indestructible_block', name: 'Indestructible Block', name_pt: 'Bloco Indestrutível', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
 
     'wood_door': { id: 'wood_door', name: 'Wood Door', name_pt: 'Porta de Madeira', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
     'iron_door': { id: 'iron_door', name: 'Iron Door', name_pt: 'Porta de Ferro', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
@@ -299,6 +302,7 @@ export const CRAFTING_RECIPES: { [itemId: string]: { [resourceId: string]: numbe
     'armor_gold': { 'gold_ingot': 15 },
     'armor_diamond': { 'diamond': 20 },
     'armor_ruby': { 'ruby': 20 },
+    'indestructible_block': { 'diamond': 10, 'ruby': 10 },
 };
 
 export const PORTAL_REQUIREMENTS: { [itemId: string]: number } = {

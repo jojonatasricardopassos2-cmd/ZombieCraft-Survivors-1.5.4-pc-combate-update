@@ -806,10 +806,13 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
 
     // 4. Building/Resource destruction
     setBuildings(bs => bs.filter(b => {
+        if (b.material === 'indestructible') return true;
         const dist = Math.hypot(b.x - x, b.y - y);
         if (dist < radius) {
             if(ITEMS[b.type]) {
                 newDrops.push({ id: `drop_b_${b.type}_${Date.now()}`, x: b.x, y: b.y, size: 20, item: ITEMS[b.type as 'chest'] });
+            } else if (ITEMS[`${b.material}_block`]) {
+                newDrops.push({ id: `drop_b_${b.material}_${Date.now()}`, x: b.x, y: b.y, size: 20, item: ITEMS[`${b.material}_block`] });
             }
             return false;
         }
@@ -1355,9 +1358,11 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                         if (Date.now() - lastAttackTime > zombie.attackCooldown) {
                             lastAttackTime = Date.now();
                             playSound(SOUNDS.ZOMBIE_ATTACK, { volume: 0.4 });
-                            setBuildings(bs => bs.map(b => 
-                                b.id === blockingBuilding?.id ? {...b, hp: b.hp - zombie.damage} : b
-                            ).filter(b => b.hp > 0));
+                            if (blockingBuilding.material !== 'indestructible') {
+                                setBuildings(bs => bs.map(b => 
+                                    b.id === blockingBuilding?.id ? {...b, hp: b.hp - zombie.damage} : b
+                                ).filter(b => b.hp > 0));
+                            }
                         }
                     } else {
                         x = nextX;
@@ -2806,7 +2811,7 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                 } else if (key === 'z') {
                     const activeItem = player.inventory[player.activeSlot]?.item;
                     if (activeItem && activeItem.type === 'block') {
-                         if (['workbench', 'chest', 'furnace', 'enchanting_table', 'tnt'].includes(activeItem.id)) return; // These are placed with 'E'
+                         if (['workbench', 'chest', 'bed', 'furnace', 'enchanting_table', 'tnt'].includes(activeItem.id)) return; // These are placed with 'E'
                         const angle = Math.atan2(mousePos.y - window.innerHeight / 2, mousePos.x - window.innerWidth / 2);
                         const placementDist = TILE_SIZE * 1.5;
                         const targetX = player.x + Math.cos(angle) * placementDist;
