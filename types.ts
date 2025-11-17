@@ -324,3 +324,17 @@ export interface Explosion {
     radius: number;
     createdAt: number;
 }
+
+export interface WorldState {
+  resources: ResourceNode[];
+  zombies: Zombie[];
+  animals: Animal[];
+  dogs: Dog[];
+  npcs: NPC[];
+  itemDrops: ItemDrop[];
+  buildings: Building[];
+  portals: Portal[];
+  particles: Particle[];
+  explosions: Explosion[];
+  destroyedResources: ResourceNode[];
+}

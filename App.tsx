@@ -1,9 +1,6 @@
-
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState, ResourceType, ToolTier, ZombieType, Language, AnimalType, Biome, NPCType, ZombieState, DogState, Enchantment } from './types';
-import type { Player, ResourceNode, Zombie, Projectile, InventorySlot, Item, Tool, CollectingState, Building, Armor, Animal, ItemDrop, Consumable, Portal, Particle, NPC, Quest, TamingState, Dog, EnchantmentOption, ItemEnchantment, Explosion } from './types';
+import type { Player, ResourceNode, Zombie, Projectile, InventorySlot, Item, Tool, CollectingState, Building, Armor, Animal, ItemDrop, Consumable, Portal, Particle, NPC, Quest, TamingState, Dog, EnchantmentOption, ItemEnchantment, Explosion, WorldState } from './types';
 // FIX: import `translations` to be used for NPC name localization.
 import {
   WORLD_WIDTH, WORLD_HEIGHT, TILE_SIZE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_SPRINT_SPEED, PLAYER_MAX_HP, PLAYER_MAX_STAMINA, STAMINA_REGEN_RATE, STAMINA_DRAIN_RATE, DAY_DURATION_MS, NIGHT_DURATION_MS, BLOOD_MOON_DURATION_MS, RAIN_DURATION_MS, RESOURCE_RESPAWN_MS, ZOMBIE_STATS, ANIMAL_STATS, DOG_STATS, RESOURCE_DATA, ITEMS, INVENTORY_SLOTS, HOTBAR_SLOTS, INVENTORY_CRAFTING_RECIPES, CRAFTING_RECIPES, BIOME_DATA, LAVA_DAMAGE_THRESHOLD_MS, LAVA_DAMAGE_PER_SECOND, BLOCK_HP, PORTAL_INVENTORY_SLOTS, CHEST_INVENTORY_SLOTS, PLAYER_MAX_ENERGY, ENERGY_DRAIN_RATE, ENERGY_REGEN_PASSIVE_RATE, ENERGY_DAMAGE_AMOUNT, SMELT_TIME, FUEL_DURATION, FURNACE_INVENTORY_SLOTS, NPC_NAMES, QUEST_LIST, ZOMBIE_DETECTION_RADIUS, ZOMBIE_SOUND_INVESTIGATION_RADIUS, translations, ENCHANTMENT_DATA, TNT_RADIUS, TNT_DAMAGE, BAZOOKA_RADIUS, BAZOOKA_DAMAGE, CRATER_DURATION_MS, PLAYER_LAUNCH_FORCE
@@ -132,6 +129,10 @@ const App: React.FC = () => {
   const [isNearReturnPortal, setIsNearReturnPortal] = useState(false);
   const [showSleepConfirm, setShowSleepConfirm] = useState(false);
 
+  // Dimension State
+  const [overworldState, setOverworldState] = useState<WorldState | null>(null);
+  const [rubyState, setRubyState] = useState<WorldState | null>(null);
+
   // Save/Load State
   const [saveExists, setSaveExists] = useState(false);
   const [showSaveMessage, setShowSaveMessage] = useState(false);
@@ -148,7 +149,7 @@ const App: React.FC = () => {
     y: player.y - window.innerHeight / 2
   };
   
-  const generateResources = useCallback((dimension: 'OVERWORLD' | 'RUBY') => {
+  const generateResources = useCallback((dimension: 'OVERWORLD' | 'RUBY'): ResourceNode[] => {
     const newResources: ResourceNode[] = [];
     const totalResources = dimension === 'RUBY' ? 200 : 500;
 
@@ -190,7 +191,7 @@ const App: React.FC = () => {
             }
         }
     }
-    setResources(newResources);
+    return newResources;
   }, []);
 
   const generateStructure = useCallback((centerX: number, centerY: number, structure: string[], material: string) => {
@@ -222,9 +223,10 @@ const App: React.FC = () => {
     return newBuildings;
   }, []);
 
-  const initGame = useCallback(() => {
-    const initialPlayer = createInitialPlayer();
-    setPlayer(initialPlayer);
+  const initGame = useCallback((resetPlayer = true) => {
+    if (resetPlayer) {
+        setPlayer(createInitialPlayer());
+    }
     setDay(1);
     setIsNight(false);
     setTimeInCycle(0);
@@ -242,6 +244,7 @@ const App: React.FC = () => {
     setBuildings([]);
     setIsBloodMoon(false);
     setIsRaining(false);
+    setDestroyedResources([]);
     
     // NPCs & Structures
     const newNPCs: NPC[] = [];
@@ -274,9 +277,12 @@ const App: React.FC = () => {
     setNpcs(newNPCs);
     setBuildings(newBuildings);
 
-    generateResources('OVERWORLD');
-    setDestroyedResources([]);
-    setGameState(GameState.PLAYING);
+    const newResources = generateResources('OVERWORLD');
+    setResources(newResources);
+
+    if (resetPlayer) {
+        setGameState(GameState.PLAYING);
+    }
   }, [generateResources, generateStructure]);
 
     const addToInventory = useCallback((itemToAdd: Item, quantity: number = itemToAdd.quantity): boolean => {
@@ -517,30 +523,66 @@ const App: React.FC = () => {
 
 const enterRubyDimension = useCallback(() => {
     playSound(SOUNDS.PORTAL_TRAVEL);
-    // Clear entities from the current dimension
-    setZombies([]);
-    setAnimals([]);
-    setDogs([]);
-    setBuildings([]);
-    setItemDrops([]);
-    setParticles([]);
-    setNpcs([]);
 
-    // Generate Ruby dimension content
-    generateResources('RUBY');
-    
-    // Create the return portal
-    setPortals([{
-        id: `portal_to_overworld_${Date.now()}`,
-        x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2, 
-        size: TILE_SIZE * 3,
-        sizeX: TILE_SIZE * 1.5,
-        sizeY: TILE_SIZE * 3,
-        type: 'portal',
-        inventory: [], isActive: true, targetDimension: 'OVERWORLD'
-    }]);
+    // 1. Save current (Overworld) state
+    setOverworldState({
+        resources, zombies, animals, dogs, npcs, itemDrops, buildings, portals, particles, explosions, destroyedResources
+    });
 
-    // Update player state
+    // 2. Load or initialize Ruby state
+    if (rubyState) {
+        setResources(rubyState.resources);
+        setZombies(rubyState.zombies);
+        setAnimals(rubyState.animals);
+        setDogs(rubyState.dogs);
+        setNpcs(rubyState.npcs);
+        setItemDrops(rubyState.itemDrops);
+        setBuildings(rubyState.buildings);
+        setPortals(rubyState.portals);
+        setParticles(rubyState.particles);
+        setExplosions(rubyState.explosions);
+        setDestroyedResources(rubyState.destroyedResources);
+    } else {
+        const newRubyResources = generateResources('RUBY');
+        const newReturnPortal: Portal = {
+            id: `portal_to_overworld_${Date.now()}`,
+            x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
+            size: TILE_SIZE * 3,
+            sizeX: TILE_SIZE * 1.5,
+            sizeY: TILE_SIZE * 3,
+            type: 'portal',
+            inventory: [], isActive: true, targetDimension: 'OVERWORLD'
+        };
+        const initialRubyState: WorldState = {
+            resources: newRubyResources,
+            zombies: [],
+            animals: [],
+            dogs: [],
+            npcs: [],
+            itemDrops: [],
+            buildings: [],
+            portals: [newReturnPortal],
+            particles: [],
+            explosions: [],
+            destroyedResources: [],
+        };
+
+        setResources(initialRubyState.resources);
+        setZombies(initialRubyState.zombies);
+        setAnimals(initialRubyState.animals);
+        setDogs(initialRubyState.dogs);
+        setNpcs(initialRubyState.npcs);
+        setItemDrops(initialRubyState.itemDrops);
+        setBuildings(initialRubyState.buildings);
+        setPortals(initialRubyState.portals);
+        setParticles(initialRubyState.particles);
+        setExplosions(initialRubyState.explosions);
+        setDestroyedResources(initialRubyState.destroyedResources);
+
+        setRubyState(initialRubyState);
+    }
+
+    // 3. Update player state
     setPlayer(p => ({
         ...p,
         dimension: 'RUBY',
@@ -549,30 +591,41 @@ const enterRubyDimension = useCallback(() => {
         x: WORLD_WIDTH / 2,
         y: WORLD_HEIGHT / 2 + 100
     }));
-    
+
     setGameState(GameState.PLAYING);
     setActivePortal(null);
-}, [generateResources]);
+}, [
+    resources, zombies, animals, dogs, npcs, itemDrops, buildings, portals, particles, explosions, destroyedResources,
+    rubyState, generateResources
+]);
 
 const returnToOverworld = useCallback(() => {
     playSound(SOUNDS.PORTAL_TRAVEL);
-    // Clear entities from the current dimension
-    setZombies([]);
-    setAnimals([]);
-    setDogs([]);
-    setBuildings([]);
-    setItemDrops([]);
-    setParticles([]);
-    setNpcs([]);
 
-    // Generate Overworld content
-    generateResources('OVERWORLD');
-    setPortals([]); // Portals will respawn naturally
-    
-    // Respawn NPCs
-    initGame(); // HACK: Re-initializing is easier than saving/restoring overworld state
+    // 1. Save current (Ruby) state
+    setRubyState({
+        resources, zombies, animals, dogs, npcs, itemDrops, buildings, portals, particles, explosions, destroyedResources
+    });
 
-    // Update player state
+    // 2. Load Overworld state
+    if (overworldState) {
+        setResources(overworldState.resources);
+        setZombies(overworldState.zombies);
+        setAnimals(overworldState.animals);
+        setDogs(overworldState.dogs);
+        setNpcs(overworldState.npcs);
+        setItemDrops(overworldState.itemDrops);
+        setBuildings(overworldState.buildings);
+        setPortals(overworldState.portals);
+        setParticles(overworldState.particles);
+        setExplosions(overworldState.explosions);
+        setDestroyedResources(overworldState.destroyedResources);
+    } else {
+        console.error("Overworld state not found! Re-initializing world.");
+        initGame(false); // Re-init world but not player
+    }
+
+    // 3. Update player state
     setPlayer(p => ({
         ...p,
         dimension: 'OVERWORLD',
@@ -581,7 +634,10 @@ const returnToOverworld = useCallback(() => {
     }));
 
     setGameState(GameState.PLAYING);
-}, [generateResources, initGame]);
+}, [
+    resources, zombies, animals, dogs, npcs, itemDrops, buildings, portals, particles, explosions, destroyedResources,
+    overworldState, initGame
+]);
 
 const takeDamage = useCallback((damage: number, attacker?: Zombie) => {
     setPlayer(p => {
@@ -2227,28 +2283,24 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
     const saveGame = useCallback(() => {
         if (gameState !== GameState.PLAYING && gameState !== GameState.PAUSED) return;
         try {
+            const currentWorldState: WorldState = {
+                resources, zombies, animals, dogs, npcs, itemDrops, buildings, portals, particles, explosions, destroyedResources
+            };
+
             const stateToSave = {
                 player,
-                resources,
-                zombies,
-                animals,
-                dogs,
-                npcs,
-                itemDrops,
-                buildings,
-                portals,
-                particles,
                 day,
                 isNight,
                 isBloodMoon,
                 isRaining,
                 rainTimer,
-                destroyedResources,
                 timeInCycle,
                 creativeMode,
                 invisible,
                 noclip,
                 currentBiome,
+                overworldState: player.dimension === 'OVERWORLD' ? currentWorldState : overworldState,
+                rubyState: player.dimension === 'RUBY' ? currentWorldState : rubyState,
             };
             localStorage.setItem(SAVE_KEY, JSON.stringify(stateToSave));
             setShowSaveMessage(true);
@@ -2256,7 +2308,11 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
         } catch (error) {
             console.error("Failed to save game:", error);
         }
-    }, [player, resources, zombies, buildings, day, isNight, timeInCycle, creativeMode, invisible, noclip, gameState, animals, dogs, itemDrops, isBloodMoon, isRaining, rainTimer, destroyedResources, portals, particles, currentBiome, npcs]);
+    }, [
+        player, resources, zombies, buildings, day, isNight, timeInCycle, creativeMode, invisible, noclip, gameState, 
+        animals, dogs, itemDrops, isBloodMoon, isRaining, rainTimer, destroyedResources, portals, particles, currentBiome, 
+        npcs, overworldState, rubyState, explosions
+    ]);
 
     const loadGame = useCallback(() => {
         const savedStateJSON = localStorage.getItem(SAVE_KEY);
@@ -2268,16 +2324,31 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                     ...savedState.player,
                 };
                 setPlayer(loadedPlayer);
-                setResources(savedState.resources || []);
-                setDestroyedResources(savedState.destroyedResources || []);
-                setZombies(savedState.zombies || []);
-                setAnimals(savedState.animals || []);
-                setDogs(savedState.dogs || []);
-                setNpcs(savedState.npcs || []);
-                setItemDrops(savedState.itemDrops || []);
-                setBuildings(savedState.buildings || []);
-                setPortals(savedState.portals || []);
-                setParticles(savedState.particles || []);
+
+                const savedOverworldState = savedState.overworldState || null;
+                const savedRubyState = savedState.rubyState || null;
+                setOverworldState(savedOverworldState);
+                setRubyState(savedRubyState);
+
+                const activeWorldState = loadedPlayer.dimension === 'RUBY' ? savedRubyState : savedOverworldState;
+                
+                if (activeWorldState) {
+                    setResources(activeWorldState.resources || []);
+                    setZombies(activeWorldState.zombies || []);
+                    setAnimals(activeWorldState.animals || []);
+                    setDogs(activeWorldState.dogs || []);
+                    setNpcs(activeWorldState.npcs || []);
+                    setItemDrops(activeWorldState.itemDrops || []);
+                    setBuildings(activeWorldState.buildings || []);
+                    setPortals(activeWorldState.portals || []);
+                    setParticles(activeWorldState.particles || []);
+                    setExplosions(activeWorldState.explosions || []);
+                    setDestroyedResources(activeWorldState.destroyedResources || []);
+                } else {
+                    // Fallback for older saves
+                    initGame(false);
+                }
+
                 setDay(savedState.day || 1);
                 setIsNight(savedState.isNight || false);
                 setIsBloodMoon(savedState.isBloodMoon || false);
@@ -2301,7 +2372,9 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
     const startNewGame = useCallback(() => {
         localStorage.removeItem(SAVE_KEY);
         setSaveExists(false);
-        initGame();
+        setOverworldState(null);
+        setRubyState(null);
+        initGame(true);
     }, [initGame]);
 
     useEffect(() => {

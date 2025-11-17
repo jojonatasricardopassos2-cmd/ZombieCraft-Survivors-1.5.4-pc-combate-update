@@ -89,11 +89,11 @@ export const RESOURCE_DATA: { [key in ResourceType | string]: { color: string; r
 
 // FIX: Added 'color' property to the BIOME_DATA type to match the object's structure.
 export const BIOME_DATA: { [key in Biome]: { color: string; resourceMultipliers: { [key in ResourceType]?: number } } } = {
-    [Biome.PLAINS]: { color: '#8BC34A', resourceMultipliers: { [ResourceType.WOOD]: 0.3, [ResourceType.STONE]: 0.3, [ResourceType.COAL]: 0.25, [ResourceType.IRON]: 0.2, [ResourceType.GOLD]: 0.1, [ResourceType.DIAMOND]: 0.05 } },
-    [Biome.FOREST]: { color: '#388E3C', resourceMultipliers: { [ResourceType.WOOD]: 1.2, [ResourceType.STONE]: 1.0, [ResourceType.COAL]: 1.1, [ResourceType.IRON]: 1.0, [ResourceType.GOLD]: 0.8, [ResourceType.DIAMOND]: 0.5 } },
-    [Biome.DESERT]: { color: '#FFF59D', resourceMultipliers: { [ResourceType.WOOD]: 0.1, [ResourceType.STONE]: 2.0, [ResourceType.COAL]: 1.5, [ResourceType.IRON]: 1.2, [ResourceType.GOLD]: 1.0, [ResourceType.DIAMOND]: 0.3 } },
-    [Biome.SNOW]: { color: '#E0E0E0', resourceMultipliers: { [ResourceType.WOOD]: 1.5, [ResourceType.STONE]: 1.5, [ResourceType.COAL]: 0.8, [ResourceType.IRON]: 0.5, [ResourceType.GOLD]: 0.3, [ResourceType.DIAMOND]: 0.1 } },
-    [Biome.LAVA]: { color: '#FF7043', resourceMultipliers: { [ResourceType.WOOD]: 0.0, [ResourceType.STONE]: 1.2, [ResourceType.COAL]: 1.8, [ResourceType.IRON]: 1.5, [ResourceType.GOLD]: 2.0, [ResourceType.DIAMOND]: 1.5 } },
+    [Biome.PLAINS]: { color: '#8BC34A', resourceMultipliers: { [ResourceType.WOOD]: 0.3, [ResourceType.STONE]: 0.3, [ResourceType.COAL]: 0.25, [ResourceType.IRON]: 0.2, [ResourceType.GOLD]: 0.5, [ResourceType.DIAMOND]: 0.4 } },
+    [Biome.FOREST]: { color: '#388E3C', resourceMultipliers: { [ResourceType.WOOD]: 1.2, [ResourceType.STONE]: 1.0, [ResourceType.COAL]: 1.1, [ResourceType.IRON]: 1.0, [ResourceType.GOLD]: 1.2, [ResourceType.DIAMOND]: 0.9 } },
+    [Biome.DESERT]: { color: '#FFF59D', resourceMultipliers: { [ResourceType.WOOD]: 0.1, [ResourceType.STONE]: 2.0, [ResourceType.COAL]: 1.5, [ResourceType.IRON]: 1.2, [ResourceType.GOLD]: 1.5, [ResourceType.DIAMOND]: 0.8 } },
+    [Biome.SNOW]: { color: '#E0E0E0', resourceMultipliers: { [ResourceType.WOOD]: 1.5, [ResourceType.STONE]: 1.5, [ResourceType.COAL]: 0.8, [ResourceType.IRON]: 0.5, [ResourceType.GOLD]: 0.8, [ResourceType.DIAMOND]: 0.5 } },
+    [Biome.LAVA]: { color: '#FF7043', resourceMultipliers: { [ResourceType.WOOD]: 0.0, [ResourceType.STONE]: 1.2, [ResourceType.COAL]: 1.8, [ResourceType.IRON]: 1.5, [ResourceType.GOLD]: 2.2, [ResourceType.DIAMOND]: 1.8 } },
     [Biome.WATER]: { color: '#4FC3F7', resourceMultipliers: {} },
     [Biome.RUBY]: { color: '#6A0DAD', resourceMultipliers: { [ResourceType.WOOD]: 0.0, [ResourceType.STONE]: 0.5, [ResourceType.COAL]: 0.5, [ResourceType.IRON]: 0.5, [ResourceType.GOLD]: 0.5, [ResourceType.DIAMOND]: 1.0, [ResourceType.RUBY]: 3.0, [ResourceType.RUBY_CRYSTAL]: 2.0 } },
 };
