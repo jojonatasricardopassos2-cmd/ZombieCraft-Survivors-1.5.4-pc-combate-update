@@ -1691,10 +1691,10 @@ const GameUI: React.FC<GameUIProps> = (props) => {
     return (
         <div className="text-white pointer-events-none">
             { gameState === GameState.PLAYING && <HUD {...props} t={t} /> }
-            { creativeMode && gameState === GameState.PLAYING && <CreativePanel {...props} t={t} /> }
             
             {/* Modal UIs */}
             <div className="pointer-events-auto">
+                { creativeMode && gameState === GameState.PLAYING && <CreativePanel {...props} t={t} /> }
                 {gameState === GameState.INVENTORY && <InventoryPanel {...props} t={t} />}
                 {gameState === GameState.CREATIVE_INVENTORY && <CreativeInventoryPanel {...props} t={t} />}
                 {gameState === GameState.WORKBENCH && <WorkbenchPanel {...props} t={t} />}
