@@ -1213,8 +1213,16 @@ const VendorShopPanel: React.FC<{
     t: (key: string) => string;
     language: Language;
 }> = ({ player, activeNPC, setPlayer, addToInventory, setGameState, mousePos, t, language }) => {
-    type DragSource = { type: 'inventory', index: number } | { type: 'vendor', index: number };
-    
+    const [currentTime, setCurrentTime] = useState(Date.now());
+    const discount = player.vendorDiscount;
+
+    useEffect(() => {
+        if (discount) {
+            const interval = setInterval(() => setCurrentTime(Date.now()), 1000);
+            return () => clearInterval(interval);
+        }
+    }, [discount]);
+
     const handleBuy = (itemId: string, price: number, quantity: number = 1) => {
         if (player.money >= price) {
             playSound(SOUNDS.BUY_ITEM);
@@ -1236,17 +1244,26 @@ const VendorShopPanel: React.FC<{
         if(['ammo'].includes(itemId)) buyQuantity = 50;
         if(['refined_wood', 'stone'].includes(itemId)) buyQuantity = 32;
         if(['iron_ingot'].includes(itemId)) buyQuantity = 16;
-
+        
+        const currentDiscount = (discount && discount.endTime > currentTime) ? discount.factor : 0;
+        const finalPrice = Math.round(data.price * (1 - currentDiscount));
 
         return (
             <div key={itemId} className="flex justify-between items-center p-2 my-1 rounded bg-gray-700">
                 <div>
                     <p className="font-bold text-lg">{buyQuantity > 1 ? `${buyQuantity}x ` : ''}{getItemName(item, language)}</p>
-                    <p className="text-sm text-yellow-400">${data.price}</p>
+                    {currentDiscount > 0 ? (
+                        <p className="text-sm">
+                            <span className="text-green-400 font-bold">${finalPrice}</span>
+                            <span className="text-gray-500 line-through ml-2">${data.price}</span>
+                        </p>
+                    ) : (
+                        <p className="text-sm text-yellow-400">${data.price}</p>
+                    )}
                 </div>
                 <button
-                    onClick={() => handleBuy(itemId, data.price, buyQuantity)}
-                    disabled={player.money < data.price}
+                    onClick={() => handleBuy(itemId, finalPrice, buyQuantity)}
+                    disabled={player.money < finalPrice}
                     className="px-4 py-2 rounded font-bold bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
                     {t('buy')}
@@ -1276,7 +1293,13 @@ const VendorShopPanel: React.FC<{
             <div className="w-full max-w-4xl h-[80vh] flex gap-8 p-4 bg-gray-800 rounded-lg border-2 border-gray-600">
                 {/* Left side: Vendor's Items */}
                 <div className="w-1/2 overflow-y-auto">
-                     <h2 className="text-2xl mb-2 text-center">{language === Language.PT ? translations[language].claudio : translations[language].hitler}'s Shop</h2>
+                    <h2 className="text-2xl mb-2 text-center">{language === Language.PT ? translations[language].claudio : translations[language].hitler}'s Shop</h2>
+                     {discount && discount.endTime > currentTime && (
+                        <div className="p-2 mb-2 bg-green-800 border border-green-600 rounded-lg text-center">
+                            <p className="font-bold">Potion Discount Active!</p>
+                            <p>10% off for {Math.ceil((discount.endTime - currentTime) / 1000)}s</p>
+                        </div>
+                     )}
                     {Object.entries(VENDOR_ITEMS).map(([itemId, data]) => renderVendorItem(itemId, data))}
                 </div>
                 {/* Right side: Player's Inventory */}
@@ -1459,6 +1482,7 @@ const SleepConfirmPanel: React.FC<{ skipNight: () => void; setShowSleepConfirm: 
     );
 };
 
+// FIX: Added 'activeEnchantingTable' to props destructuring to fix scope issue and compilation error.
 const EnchantingPanel: React.FC<{
     player: Player;
     activeEnchantingTable: Building;
@@ -1469,56 +1493,47 @@ const EnchantingPanel: React.FC<{
     mousePos: { x: number; y: number };
     t: (key: string) => string;
     language: Language;
-// FIX: Added 'activeEnchantingTable' to props destructuring to fix scope issue and compilation error.
 }> = ({ player, activeEnchantingTable, updatePlayerAndEnchantingSlots, enchantmentOptions, setEnchantmentOptions, handleEnchant, mousePos, t, language }) => {
     type DragSource = { type: 'inventory', index: number } | { type: 'enchanting', index: number };
     const [dragged, setDragged] = useState<{ item: Item, source: DragSource } | null>(null);
 
-    const enchantingItem = player.enchantingSlots[0].item;
-    const crystal = player.enchantingSlots[1].item;
+    const itemSlot = player.enchantingSlots[0];
+    const crystalSlot = player.enchantingSlots[1];
 
     useEffect(() => {
-        if (enchantingItem && crystal && crystal.id === 'ruby_crystal') {
-            const generateOptions = () => {
-                const options: EnchantmentOption[] = [];
-                const possibleEnchantments = Object.entries(ENCHANTMENT_DATA)
-                    .filter(([key, data]) => {
-                        if (!enchantingItem.type) return false;
-                        const toolType = (enchantingItem as Tool).toolType;
-                        const itemType = enchantingItem.type;
-
-                        const isApplicable = (type: 'pickaxe' | 'sword' | 'armor' | 'ranged' | 'any') => {
-                            if (type === 'any') return true;
-                            if (type === 'pickaxe' && toolType === 'pickaxe') return true;
-                            if (type === 'sword' && toolType === 'sword') return true;
-                            if (type === 'armor' && itemType === 'armor') return true;
-                            if (type === 'ranged' && ['pistol', 'rifle', 'ak47', 'bow'].includes(toolType)) return true;
-                            return false;
-                        };
-                        return data.applicableTo.some(isApplicable);
-                    })
-                    .map(([key]) => key as Enchantment);
-
-                while (options.length < 3 && possibleEnchantments.length > 0) {
-                    const randIndex = Math.floor(Math.random() * possibleEnchantments.length);
-                    const enchType = possibleEnchantments.splice(randIndex, 1)[0];
-                    const enchData = ENCHANTMENT_DATA[enchType];
-                    const level = Math.floor(Math.random() * enchData.maxLevel) + 1;
+        const item = itemSlot?.item;
+        const crystal = crystalSlot?.item;
+        if (item && crystal?.id === 'ruby_crystal') {
+            const applicableEnchants = Object.entries(ENCHANTMENT_DATA).filter(([key, data]) => {
+                const tool = item as Tool;
+                if(data.applicableTo.includes('any')) return true;
+                if(tool.toolType && data.applicableTo.includes('pickaxe') && tool.toolType === 'pickaxe') return true;
+                if(tool.toolType && data.applicableTo.includes('sword') && tool.toolType === 'sword') return true;
+                if(item.type === 'armor' && data.applicableTo.includes('armor')) return true;
+                if(tool.toolType && ['bow', 'pistol', 'rifle', 'ak47', 'bazooka'].includes(tool.toolType) && data.applicableTo.includes('ranged')) return true;
+                return false;
+            });
+            
+            const options: EnchantmentOption[] = [];
+            // Simple logic for now: offer 3 random applicable enchants
+            for (let i = 0; i < 3 && applicableEnchants.length > 0; i++) {
+                const [key, data] = applicableEnchants.splice(Math.floor(Math.random() * applicableEnchants.length), 1)[0];
+                const existingEnchant = item.enchantments?.find(e => e.type === key as Enchantment);
+                const currentLevel = existingEnchant?.level || 0;
+                if (currentLevel < data.maxLevel) {
                     options.push({
-                        enchantment: { type: enchType, level },
-                        description: `??? ${level}`
+                        enchantment: { type: key as Enchantment, level: currentLevel + 1 },
+                        description: `${language === Language.PT ? data.name_pt : data.name_en} ${currentLevel + 1}`
                     });
                 }
-                setEnchantmentOptions(options);
-            };
-
-            if (enchantmentOptions.length === 0) {
-                generateOptions();
             }
+            setEnchantmentOptions(options);
+
         } else {
             setEnchantmentOptions([]);
         }
-    }, [enchantingItem, crystal, enchantmentOptions.length, setEnchantmentOptions]);
+
+    }, [itemSlot, crystalSlot, setEnchantmentOptions, language]);
 
     const handleDragStart = (item: Item, source: DragSource) => (e: React.MouseEvent) => {
         e.preventDefault();
@@ -1540,11 +1555,18 @@ const EnchantingPanel: React.FC<{
         const sourceSlot = getSlot(dragged.source);
         const targetSlot = getSlot(target);
         
-        // Validation
-        if(target.type === 'enchanting') {
-            if(target.index === 1 && dragged.item.id !== 'ruby_crystal') { setDragged(null); return; }
+        // Validation for enchanting slots
+        if (target.type === 'enchanting') {
+            if (target.index === 1 && dragged.item.id !== 'ruby_crystal') {
+                setDragged(null);
+                return;
+            }
+            if (target.index === 0 && (!dragged.item.maxDurability)) {
+                setDragged(null);
+                return;
+            }
         }
-
+        
         if (sourceSlot.item?.id === targetSlot.item?.id && sourceSlot.item?.stackable && targetSlot.item?.quantity < targetSlot.item.maxStack) {
              const canAdd = targetSlot.item.maxStack - targetSlot.item.quantity;
              const toAdd = Math.min(sourceSlot.item.quantity, canAdd);
@@ -1567,10 +1589,10 @@ const EnchantingPanel: React.FC<{
         if (dragged) handleDrop(target);
         setDragged(null);
     };
-    
-    const renderSlot = (slot: InventorySlot, index: number, type: 'inventory' | 'enchanting') => (
-         <div key={`${type}-${index}`} className="w-16 h-16 bg-gray-700 border-2 border-gray-600 rounded flex items-center justify-center relative select-none group" onMouseUp={handleMouseUp({ type, index })}>
-            {slot.item && (
+
+    const renderSlot = (slot: InventorySlot, index: number, type: 'inventory' | 'enchanting', placeholder: string = "") => (
+         <div key={`${type}-${index}`} className="w-16 h-16 bg-gray-700 border-2 border-gray-600 rounded flex flex-col items-center justify-center relative select-none group" onMouseUp={handleMouseUp({ type, index })}>
+            {slot.item ? (
                 <>
                  <div className="w-full h-full flex flex-col items-center justify-center cursor-grab" onMouseDown={handleDragStart(slot.item, { type, index })}>
                     <span className={`text-xs text-center truncate w-full ${slot.item.enchantments && slot.item.enchantments.length > 0 ? 'text-purple-400' : ''}`}>{getItemName(slot.item, language)}</span>
@@ -1580,54 +1602,50 @@ const EnchantingPanel: React.FC<{
                     <ItemTooltip item={slot.item} language={language} t={t} />
                 </div>
                 </>
-            )}
+            ) : <span className="text-gray-500 text-xs text-center">{placeholder}</span>}
         </div>
     );
-
-    if (!activeEnchantingTable) {
-        return null;
-    }
     
     return (
         <div className="absolute inset-0 bg-gray-900 bg-opacity-90 flex flex-col items-center justify-center text-white" onMouseUp={() => setDragged(null)}>
-            <div className="bg-gray-800 p-6 rounded-lg border-2 border-gray-600">
-                <h2 className="text-3xl font-bold mb-4 text-center">{t('enchantingTable')}</h2>
-                <div className="flex gap-8 items-start">
-                    {/* Enchanting UI */}
-                    <div className="flex flex-col items-center gap-2">
-                         {renderSlot(player.enchantingSlots[0], 0, 'enchanting')}
-                         <span className="text-2xl">+</span>
-                         {renderSlot(player.enchantingSlots[1], 1, 'enchanting')}
+            <div className="bg-gray-800 p-6 rounded-lg border-2 border-gray-600 flex gap-8 items-start">
+                {/* Left side: Player Inventory */}
+                <div className="text-center">
+                    <h3 className="text-xl mb-2">{t('inventory')}</h3>
+                    <div className="grid grid-cols-5 gap-2">
+                        {player.inventory.map((slot, i) => renderSlot(slot, i, 'inventory'))}
+                    </div>
+                </div>
+                
+                {/* Right side: Enchanting UI */}
+                <div className="flex flex-col items-center gap-4">
+                     <h2 className="text-3xl font-bold">{t('enchantingTable')}</h2>
+                    <div className="flex items-center gap-4">
+                        {renderSlot(itemSlot, 0, 'enchanting', 'Item')}
+                        <span className="text-2xl">+</span>
+                        {renderSlot(crystalSlot, 1, 'enchanting', 'Crystal')}
                     </div>
                     
-                    {/* Enchantment Options */}
-                    <div className="w-64">
-                         <h3 className="text-xl mb-2 text-center">{t('enchantments')}</h3>
-                         <div className="space-y-2">
-                            {enchantmentOptions.map((option, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => handleEnchant(option.enchantment)}
-                                    className="w-full p-2 bg-purple-800 hover:bg-purple-700 rounded text-left"
-                                >
-                                    <p className="font-bold">{language === Language.PT ? ENCHANTMENT_DATA[option.enchantment.type].name_pt : ENCHANTMENT_DATA[option.enchantment.type].name_en} {option.enchantment.level > 1 ? option.enchantment.level : ''}</p>
-                                    <p className="text-sm text-gray-300">Cost: 1 Crystal</p>
-                                </button>
-                            ))}
-                         </div>
-                    </div>
-                    
-                     {/* Player Inventory */}
-                    <div>
-                         <h3 className="text-xl mb-2 text-center">{t('inventory')}</h3>
-                        <div className="grid grid-cols-5 gap-2">
-                            {player.inventory.map((slot, i) => renderSlot(slot, i, 'inventory'))}
-                        </div>
+                    <div className="w-full h-[2px] bg-gray-600 my-2"></div>
+
+                    <div className="w-full space-y-2">
+                        <h3 className="text-xl text-center">{t('enchantments')}</h3>
+                        {enchantmentOptions.length > 0 ? enchantmentOptions.map((opt, i) => (
+                            <button 
+                                key={i} 
+                                className="w-full bg-purple-700 hover:bg-purple-800 text-left p-2 rounded"
+                                onClick={() => handleEnchant(opt.enchantment)}
+                            >
+                                {opt.description}
+                            </button>
+                        )) : (
+                            <p className="text-gray-400 text-center">...</p>
+                        )}
                     </div>
                 </div>
             </div>
-            {dragged && (
-                <div className="fixed pointer-events-none top-0 left-0" style={{ transform: `translate(${mousePos.x - 32}px, ${mousePos.y-32}px)` }}>
+             {dragged && (
+                <div className="fixed pointer-events-none top-0 left-0" style={{ transform: `translate(${mousePos.x - 32}px, ${mousePos.y - 32}px)` }}>
                     <div className="w-16 h-16 bg-gray-600 border-2 border-yellow-400 rounded flex flex-col items-center justify-center opacity-75">
                          <span className={`text-xs text-center truncate w-full ${dragged.item.enchantments && dragged.item.enchantments.length > 0 ? 'text-purple-400' : ''}`}>{getItemName(dragged.item, language)}</span>
                         <span className="text-lg font-bold">{dragged.item.quantity}</span>
@@ -1638,117 +1656,67 @@ const EnchantingPanel: React.FC<{
     );
 };
 
-const GameOverScreen: React.FC<{ onRestart: () => void; t: (key: string) => string; }> = ({ onRestart, t }) => {
-  return (
-    <div className="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center text-red-500">
-      <h1 className="text-9xl font-bold animate-pulse">{t('youDied')}</h1>
-      <button onClick={onRestart} className="mt-8 bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-8 rounded-lg text-2xl">
-        {t('restart')}
-      </button>
-    </div>
-  );
-};
-
-const CollectingBar: React.FC<{ collectingState: CollectingState; resources: (ResourceNode|Building|Portal|NPC|Dog)[]; camera: {x:number, y:number} }> = ({ collectingState, resources, camera }) => {
-  if (!collectingState) return null;
-  const node = resources.find(r => r.id === collectingState.nodeId);
-  if (!node) return null;
-  const screenX = node.x - camera.x;
-  const screenY = node.y - camera.y - node.size / 2 - 20;
-
-  return (
-    <div className="absolute w-24 h-4 bg-gray-700 border border-black rounded" style={{ left: `${screenX}px`, top: `${screenY}px`, transform: 'translateX(-50%)' }}>
-      <div className="h-full bg-green-500 rounded" style={{ width: `${collectingState.progress * 100}%` }}></div>
-    </div>
-  );
-};
-
 const GameUI: React.FC<GameUIProps> = (props) => {
-  const {
-    gameState, setGameState, language, setLanguage, player, setPlayer, day, isNight, timeInCycle, isBloodMoon, isRaining,
-    startNewGame, loadGame, saveExists, showSaveMessage, addToInventory, collectingState, resources, camera, creativeMode,
-    noclip, invisible, giveCreativeItem, spawnZombie, spawnAnimal, teleportPlayer, manipulatePlayerStat, updatePlayerInventory,
-    handleCraft, toggleBloodMoon, toggleRain, getBiomeAt, currentBiome, activePortal, updatePlayerAndPortalInventories,
-    enterRubyDimension, isNearReturnPortal, activeChest, updatePlayerAndChestInventories, activeFurnace, updatePlayerAndFurnaceInventories,
-    activeEnchantingTable, updatePlayerAndEnchantingSlots, enchantmentOptions, setEnchantmentOptions, handleEnchant, activeNPC,
-    showSleepConfirm, setShowSleepConfirm, skipNight, dogBeingNamed, handleNamePet,
-    zombies, setZombies, setDay, setIsNight, setTimeInCycle, setIsRaining, mousePos
-  } = props;
-
+    const { gameState, setGameState, loadGame, saveExists, startNewGame, language, setLanguage, player, day, isNight, timeInCycle, isBloodMoon, isRaining, creativeMode, showSaveMessage, currentBiome, isNearReturnPortal, activePortal, activeChest, activeFurnace, activeEnchantingTable, activeNPC, dogBeingNamed, showSleepConfirm, skipNight, setShowSleepConfirm, handleNamePet, collectingState } = props;
+    
     const t = useCallback((key: string) => {
         return translations[language][key] || key;
     }, [language]);
-    
-    switch (gameState) {
-        case GameState.MENU:
-            return <MainMenu onPlay={startNewGame} onContinue={loadGame} saveExists={saveExists} t={t} language={language} setLanguage={setLanguage} />;
-        case GameState.PLAYING:
-        case GameState.PAUSED:
-            return (
-                <>
-                    <HUD player={player} day={day} isNight={isNight} timeInCycle={timeInCycle} isBloodMoon={isBloodMoon} isRaining={isRaining} setGameState={setGameState} creativeMode={creativeMode} showSaveMessage={showSaveMessage} t={t} language={language} currentBiome={currentBiome} isNearReturnPortal={isNearReturnPortal} />
-                    <CollectingBar collectingState={collectingState} resources={resources} camera={camera} />
-                    {creativeMode && <CreativePanel setGameState={setGameState} spawnZombie={spawnZombie} spawnAnimal={spawnAnimal} teleportPlayer={teleportPlayer} manipulatePlayerStat={manipulatePlayerStat} noclip={noclip} invisible={invisible} isBloodMoon={isBloodMoon} isRaining={isRaining} toggleBloodMoon={toggleBloodMoon} toggleRain={toggleRain} t={t} setZombies={setZombies} setPlayer={setPlayer} setDay={setDay} setIsNight={setIsNight} setTimeInCycle={setTimeInCycle} setIsRaining={setIsRaining} />}
-                    {showSleepConfirm && <SleepConfirmPanel skipNight={skipNight} setShowSleepConfirm={setShowSleepConfirm} t={t} />}
-                </>
-            );
-        case GameState.INVENTORY:
-            return <InventoryPanel player={player} updatePlayerInventory={updatePlayerInventory} setGameState={setGameState} mousePos={mousePos} t={t} language={language} />;
-        case GameState.CREATIVE_INVENTORY:
-            return <CreativeInventoryPanel setGameState={setGameState} giveCreativeItem={giveCreativeItem} t={t} language={language} />;
-        case GameState.WORKBENCH:
-            return <WorkbenchPanel player={player} handleCraft={handleCraft} setGameState={setGameState} t={t} language={language} />;
-        case GameState.PORTAL_UI:
-            if (activePortal) {
-                return <PortalPanel player={player} activePortal={activePortal} updatePlayerAndPortalInventories={updatePlayerAndPortalInventories} enterRubyDimension={enterRubyDimension} setGameState={setGameState} mousePos={mousePos} t={t} language={language} />;
-            }
-            break;
-        case GameState.CHEST_UI:
-             if (activeChest) {
-                return <ChestPanel player={player} activeChest={activeChest} updatePlayerAndChestInventories={updatePlayerAndChestInventories} setGameState={setGameState} mousePos={mousePos} t={t} language={language} />;
-            }
-            break;
-        case GameState.FURNACE:
-             if (activeFurnace) {
-                return <FurnacePanel player={player} activeFurnace={activeFurnace} updatePlayerAndFurnaceInventories={updatePlayerAndFurnaceInventories} mousePos={mousePos} t={t} language={language} />;
-             }
-             break;
-        case GameState.ENCHANTING:
-            if (activeEnchantingTable) {
-                return <EnchantingPanel 
-                    player={player}
-                    activeEnchantingTable={activeEnchantingTable}
-                    updatePlayerAndEnchantingSlots={updatePlayerAndEnchantingSlots}
-                    enchantmentOptions={enchantmentOptions}
-                    setEnchantmentOptions={setEnchantmentOptions}
-                    handleEnchant={handleEnchant}
-                    mousePos={mousePos}
-                    t={t}
-                    language={language}
-                />;
-            }
-            break;
-        case GameState.VENDOR_SHOP:
-            if (activeNPC) {
-                return <VendorShopPanel player={player} activeNPC={activeNPC} setPlayer={setPlayer} addToInventory={addToInventory} setGameState={setGameState} mousePos={mousePos} t={t} language={language} />;
-            }
-            break;
-        case GameState.QUEST_UI:
-            if (activeNPC) {
-                return <QuestPanel player={player} activeNPC={activeNPC} setPlayer={setPlayer} setGameState={setGameState} t={t} language={language} />;
-            }
-            break;
-        case GameState.NAMING_PET:
-            if (dogBeingNamed) {
-                return <NamingPetPanel dogId={dogBeingNamed.id} handleNamePet={handleNamePet} t={t} />;
-            }
-            break;
-        case GameState.SHOP:
-            return <ShopPanel setGameState={setGameState} player={player} addToInventory={addToInventory} t={t} language={language} />;
-        case GameState.GAME_OVER:
-            return <GameOverScreen onRestart={startNewGame} t={t} />;
+
+    if (gameState === GameState.MENU) {
+        return (
+            <MainMenu
+                onPlay={startNewGame}
+                onContinue={loadGame}
+                saveExists={saveExists}
+                t={t}
+                language={language}
+                setLanguage={setLanguage}
+            />
+        );
     }
-    return null;
+    
+    // Fallback for unhandled states, though most are overlays.
+    if (gameState === GameState.GAME_OVER) {
+         return (
+            <div className="absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center text-white">
+                <h1 className="text-8xl font-bold mb-4 text-red-600">{t('youDied')}</h1>
+                <button onClick={startNewGame} className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg text-2xl">
+                    {t('restart')}
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="text-white pointer-events-none">
+            { gameState === GameState.PLAYING && <HUD {...props} t={t} /> }
+            { creativeMode && gameState === GameState.PLAYING && <CreativePanel {...props} t={t} /> }
+            
+            {/* Modal UIs */}
+            <div className="pointer-events-auto">
+                {gameState === GameState.INVENTORY && <InventoryPanel {...props} t={t} />}
+                {gameState === GameState.CREATIVE_INVENTORY && <CreativeInventoryPanel {...props} t={t} />}
+                {gameState === GameState.WORKBENCH && <WorkbenchPanel {...props} t={t} />}
+                {gameState === GameState.PORTAL_UI && activePortal && <PortalPanel {...props} t={t} />}
+                {gameState === GameState.CHEST_UI && activeChest && <ChestPanel {...props} t={t} />}
+                {gameState === GameState.FURNACE && activeFurnace && <FurnacePanel {...props} t={t} />}
+                {gameState === GameState.VENDOR_SHOP && activeNPC && <VendorShopPanel {...props} t={t} />}
+                {gameState === GameState.QUEST_UI && activeNPC && <QuestPanel {...props} t={t} />}
+                {gameState === GameState.NAMING_PET && dogBeingNamed && <NamingPetPanel dogId={dogBeingNamed.id} handleNamePet={handleNamePet} t={t} />}
+                {gameState === GameState.ENCHANTING && activeEnchantingTable && <EnchantingPanel {...props} t={t} />}
+                {showSleepConfirm && <SleepConfirmPanel skipNight={skipNight} setShowSleepConfirm={setShowSleepConfirm} t={t} />}
+            </div>
+
+            {collectingState && (
+                <div className="absolute bottom-40 left-1/2 -translate-x-1/2 w-64">
+                    <div className="w-full bg-gray-700 rounded-full h-5 border-2 border-gray-500">
+                        <div className="bg-green-500 h-full rounded-full" style={{ width: `${collectingState.progress * 100}%` }}></div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
 
 export default GameUI;

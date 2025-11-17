@@ -156,6 +156,7 @@ export const ITEMS: { [id: string]: Item | Tool | Armor | Consumable } = {
     'pickaxe_iron': { id: 'pickaxe_iron', name: 'Iron Pickaxe', name_pt: 'Picareta de Ferro', type: 'tool', toolType: 'pickaxe', tier: ToolTier.IRON, collectSpeed: 2, quantity: 1, stackable: false, maxStack: 1, durability: 251, maxDurability: 251 },
     'pickaxe_gold': { id: 'pickaxe_gold', name: 'Gold Pickaxe', name_pt: 'Picareta de Ouro', type: 'tool', toolType: 'pickaxe', tier: ToolTier.GOLD, collectSpeed: 2.8, quantity: 1, stackable: false, maxStack: 1, durability: 33, maxDurability: 33 },
     'pickaxe_diamond': { id: 'pickaxe_diamond', name: 'Diamond Pickaxe', name_pt: 'Picareta de Diamante', type: 'tool', toolType: 'pickaxe', tier: ToolTier.DIAMOND, collectSpeed: 4, quantity: 1, stackable: false, maxStack: 1, durability: 1562, maxDurability: 1562 },
+    'pickaxe_ruby': { id: 'pickaxe_ruby', name: 'Ruby Pickaxe', name_pt: 'Picareta de Rubi', type: 'tool', toolType: 'pickaxe', tier: ToolTier.RUBY, collectSpeed: 6, quantity: 1, stackable: false, maxStack: 1, durability: 2032, maxDurability: 2032 },
     
     // Tools - Axes
     'axe_wood': { id: 'axe_wood', name: 'Wood Axe', name_pt: 'Machado de Madeira', type: 'tool', toolType: 'axe', tier: ToolTier.WOOD, collectSpeed: 1.5, quantity: 1, stackable: false, maxStack: 1, durability: 60, maxDurability: 60 },
@@ -276,6 +277,7 @@ export const CRAFTING_RECIPES: { [itemId: string]: { [resourceId: string]: numbe
     'pickaxe_iron': { 'wood': 2, 'iron_ingot': 3 },
     'pickaxe_gold': { 'wood': 2, 'gold_ingot': 3 },
     'pickaxe_diamond': { 'wood': 2, 'diamond': 3 },
+    'pickaxe_ruby': { 'wood': 2, 'ruby': 3 },
 
     'axe_wood': { 'wood': 2, 'refined_wood': 3 },
     'axe_stone': { 'wood': 2, 'stone': 3 },

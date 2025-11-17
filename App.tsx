@@ -1143,6 +1143,7 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
         let newY = p.y;
         let newHp = p.hp;
         let newSlowEffect = p.slowEffect;
+        let newVendorDiscount = p.vendorDiscount;
 
         // Apply velocity from explosions
         newX += p.vx * speedMultiplier;
@@ -1156,6 +1157,9 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
 
         if (newSlowEffect && Date.now() > newSlowEffect.endTime) {
             newSlowEffect = undefined;
+        }
+        if (newVendorDiscount && Date.now() > newVendorDiscount.endTime) {
+            newVendorDiscount = undefined;
         }
 
         // Health Regeneration
@@ -1278,7 +1282,7 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
             return remainingDrops;
         });
         
-        return { ...p, x: Math.max(0, Math.min(WORLD_WIDTH, newX)), y: Math.max(0, Math.min(WORLD_HEIGHT, newY)), sprinting: isSprinting, stamina, energy, lavaDamageTimer, hp: newHp, lastDamageTime: p.lastDamageTime, lastEnergyDamageTime, slowEffect: newSlowEffect, vx: newVx, vy: newVy };
+        return { ...p, x: Math.max(0, Math.min(WORLD_WIDTH, newX)), y: Math.max(0, Math.min(WORLD_HEIGHT, newY)), sprinting: isSprinting, stamina, energy, lavaDamageTimer, hp: newHp, lastDamageTime: p.lastDamageTime, lastEnergyDamageTime, slowEffect: newSlowEffect, vx: newVx, vy: newVy, vendorDiscount: newVendorDiscount };
     });
 
     // Update Zombies
@@ -2677,6 +2681,7 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                 
                 let newHp = p.hp;
                 let newStamina = p.stamina;
+                let newVendorDiscount = p.vendorDiscount;
 
                 if (consumable.heals) {
                     newHp = Math.max(0, Math.min(p.maxHp, p.hp + consumable.heals));
@@ -2694,6 +2699,7 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                             lavaDamageTimer: 0,
                             lastDamageTime: 0,
                             slowEffect: undefined,
+                            vendorDiscount: newVendorDiscount,
                         };
                     } else if (consumable.heals < 0) {
                         playSound(SOUNDS.PLAYER_HURT);
@@ -2703,12 +2709,20 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                     newStamina = Math.min(p.maxStamina, p.stamina + consumable.stamina);
                 }
 
+                if (item.id === 'stamina_potion') {
+                    newVendorDiscount = {
+                        endTime: Date.now() + 60000, // 1 minute
+                        factor: 0.1, // 10% discount
+                    };
+                }
+
                 return { 
                     ...p, 
                     hp: newHp, 
                     stamina: newStamina,
                     inventory: newInventory, 
-                    lastDamageTime: (consumable.heals || 0) < 0 ? Date.now() : p.lastDamageTime 
+                    lastDamageTime: (consumable.heals || 0) < 0 ? Date.now() : p.lastDamageTime,
+                    vendorDiscount: newVendorDiscount,
                 };
             }
             return p;
