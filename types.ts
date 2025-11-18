@@ -150,7 +150,6 @@ export interface Player {
   overworldX: number;
   overworldY: number;
   slowEffect?: { endTime: number; factor: number; };
-  vendorDiscount?: { endTime: number; factor: number; };
   activeQuest: Quest | null;
 }
 

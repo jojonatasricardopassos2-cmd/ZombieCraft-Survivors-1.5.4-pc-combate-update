@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState, ResourceType, ToolTier, ZombieType, Language, AnimalType, Biome, NPCType, ZombieState, DogState, Enchantment } from './types';
 import type { Player, ResourceNode, Zombie, Projectile, InventorySlot, Item, Tool, CollectingState, Building, Armor, Animal, ItemDrop, Consumable, Portal, Particle, NPC, Quest, TamingState, Dog, EnchantmentOption, ItemEnchantment, Explosion, WorldState } from './types';
@@ -723,29 +722,18 @@ const takeDamage = useCallback((damage: number, attacker?: Zombie) => {
         }
 
         const newPlayerHp = Math.max(0, prospectiveHp);
-        
+        let lastDamageTime = p.lastDamageTime;
+
         if (damageTaken > 0) {
+          lastDamageTime = Date.now();
           if (newPlayerHp <= 0) {
-              playSound(SOUNDS.PLAYER_DEATH);
-              return {
-                  ...p,
-                  hp: p.maxHp,
-                  x: WORLD_WIDTH / 2,
-                  y: WORLD_HEIGHT / 2,
-                  vx: 0,
-                  vy: 0,
-                  lavaDamageTimer: 0,
-                  lastDamageTime: 0,
-                  slowEffect: undefined,
-                  offHand: newOffHand,
-                  armor: newArmor,
-              };
+              setGameState(GameState.GAME_OVER);
           } else {
               playSound(SOUNDS.PLAYER_HURT);
           }
         }
 
-        return { ...p, hp: newPlayerHp, lastDamageTime: damageTaken > 0 ? Date.now() : p.lastDamageTime, offHand: newOffHand, armor: newArmor };
+        return { ...p, hp: newPlayerHp, lastDamageTime, offHand: newOffHand, armor: newArmor };
     });
 }, [creativeMode]);
 
@@ -806,13 +794,10 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
 
     // 4. Building/Resource destruction
     setBuildings(bs => bs.filter(b => {
-        if (b.material === 'indestructible') return true;
         const dist = Math.hypot(b.x - x, b.y - y);
         if (dist < radius) {
             if(ITEMS[b.type]) {
                 newDrops.push({ id: `drop_b_${b.type}_${Date.now()}`, x: b.x, y: b.y, size: 20, item: ITEMS[b.type as 'chest'] });
-            } else if (ITEMS[`${b.material}_block`]) {
-                newDrops.push({ id: `drop_b_${b.material}_${Date.now()}`, x: b.x, y: b.y, size: 20, item: ITEMS[`${b.material}_block`] });
             }
             return false;
         }
@@ -1143,7 +1128,6 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
         let newY = p.y;
         let newHp = p.hp;
         let newSlowEffect = p.slowEffect;
-        let newVendorDiscount = p.vendorDiscount;
 
         // Apply velocity from explosions
         newX += p.vx * speedMultiplier;
@@ -1157,9 +1141,6 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
 
         if (newSlowEffect && Date.now() > newSlowEffect.endTime) {
             newSlowEffect = undefined;
-        }
-        if (newVendorDiscount && Date.now() > newVendorDiscount.endTime) {
-            newVendorDiscount = undefined;
         }
 
         // Health Regeneration
@@ -1212,19 +1193,14 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
 
 
         let lavaDamageTimer = p.lavaDamageTimer;
+        let lastDamageTime = p.lastDamageTime;
         if (playerBiome === Biome.LAVA && !creativeMode) {
             lavaDamageTimer += dt;
             if (lavaDamageTimer > LAVA_DAMAGE_THRESHOLD_MS) {
                 newHp = Math.max(0, newHp - (LAVA_DAMAGE_PER_SECOND * (dt / 1000)));
+                lastDamageTime = Date.now();
                  if (newHp <= 0) {
-                    playSound(SOUNDS.PLAYER_DEATH);
-                    newHp = p.maxHp;
-                    newX = WORLD_WIDTH / 2;
-                    newY = WORLD_HEIGHT / 2;
-                    newVx = 0;
-                    newVy = 0;
-                    lavaDamageTimer = 0;
-                    newSlowEffect = undefined;
+                    setGameState(GameState.GAME_OVER);
                  } else {
                      playSound(SOUNDS.PLAYER_HURT, { volume: 0.5 });
                  }
@@ -1282,7 +1258,7 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
             return remainingDrops;
         });
         
-        return { ...p, x: Math.max(0, Math.min(WORLD_WIDTH, newX)), y: Math.max(0, Math.min(WORLD_HEIGHT, newY)), sprinting: isSprinting, stamina, energy, lavaDamageTimer, hp: newHp, lastDamageTime: p.lastDamageTime, lastEnergyDamageTime, slowEffect: newSlowEffect, vx: newVx, vy: newVy, vendorDiscount: newVendorDiscount };
+        return { ...p, x: Math.max(0, Math.min(WORLD_WIDTH, newX)), y: Math.max(0, Math.min(WORLD_HEIGHT, newY)), sprinting: isSprinting, stamina, energy, lavaDamageTimer, hp: newHp, lastDamageTime, lastEnergyDamageTime, slowEffect: newSlowEffect, vx: newVx, vy: newVy };
     });
 
     // Update Zombies
@@ -1290,7 +1266,7 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
     setZombies(zs => {
         const newDrops: ItemDrop[] = [];
         const updatedZombies = zs.map(zombie => {
-             if (creativeMode && invisible) return zombie;
+            if (creativeMode && invisible) return zombie;
 
             let { x, y, lastAttackTime, shieldActive, state, targetX, targetY, stateTimer, hp } = zombie;
 
@@ -1362,11 +1338,9 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                         if (Date.now() - lastAttackTime > zombie.attackCooldown) {
                             lastAttackTime = Date.now();
                             playSound(SOUNDS.ZOMBIE_ATTACK, { volume: 0.4 });
-                            if (blockingBuilding.material !== 'indestructible') {
-                                setBuildings(bs => bs.map(b => 
-                                    b.id === blockingBuilding?.id ? {...b, hp: b.hp - zombie.damage} : b
-                                ).filter(b => b.hp > 0));
-                            }
+                            setBuildings(bs => bs.map(b => 
+                                b.id === blockingBuilding?.id ? {...b, hp: b.hp - zombie.damage} : b
+                            ).filter(b => b.hp > 0));
                         }
                     } else {
                         x = nextX;
@@ -1600,12 +1574,6 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                          }
                          break;
                      }
-                 }
-            } else if (proj.owner === 'boss') {
-                 const dist = Math.hypot(newProj.x - player.x, newProj.y - player.y);
-                 if (dist < newProj.size / 2 + player.size / 2) {
-                     hit = true;
-                     takeDamage(proj.damage);
                  }
             }
             
@@ -2481,185 +2449,178 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
     const now = Date.now();
     if (now - player.lastAttackTime < (player.weapon?.toolType?.includes('sword') ? 500 : 300)) return;
 
-    // Create a mutable copy of player to work with
-    const newPlayerState = { 
-        ...player, 
-        lastAttackTime: now,
-        inventory: player.inventory.map(s => ({...s, item: s.item ? {...s.item} : null}))
-    };
-    let weapon = newPlayerState.weapon ? { ...newPlayerState.weapon } : null;
+    setPlayer(p => {
+        let newPlayerState = { ...p, lastAttackTime: now };
+        let weapon = newPlayerState.weapon ? { ...newPlayerState.weapon } : null;
 
-    const damageWeapon = (): boolean => { // returns true if weapon broke
-        if (weapon && weapon.durability !== undefined) {
-            let durabilityLoss = 1;
-            const unbreaking = weapon.enchantments?.find(e => e.type === Enchantment.UNBREAKING);
-            if (unbreaking && Math.random() < 1 - (1 / (unbreaking.level + 1))) {
-                durabilityLoss = 0;
+        const damageWeapon = (): boolean => { // returns true if weapon broke
+            if (weapon && weapon.durability !== undefined) {
+                let durabilityLoss = 1;
+                const unbreaking = weapon.enchantments?.find(e => e.type === Enchantment.UNBREAKING);
+                if (unbreaking && Math.random() < 1 - (1 / (unbreaking.level + 1))) {
+                    durabilityLoss = 0;
+                }
+                
+                if (durabilityLoss > 0) {
+                    weapon.durability -= 1;
+                    if (weapon.durability <= 0) {
+                        playSound(SOUNDS.ITEM_BREAK);
+                        weapon = null;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+        if (weapon && ['pistol', 'rifle', 'ak47', 'bow', 'bazooka'].includes(weapon.toolType)) {
+            const isBow = weapon.toolType === 'bow';
+            const isAk = weapon.toolType === 'ak47';
+            const isBazooka = weapon.toolType === 'bazooka';
+
+            const ammoType = isBow ? 'arrow' : isBazooka ? 'rocket' : 'ammo';
+            const ammoCost = isAk ? 2 : 1;
+            
+            const hasAmmo = (ammoType === 'ammo')
+                ? newPlayerState.ammo >= ammoCost
+                : newPlayerState.inventory.some(s => s.item?.id === ammoType && s.item.quantity >= 1);
+
+            if (!hasAmmo) return p;
+
+            playSound(isBow ? SOUNDS.PLAYER_ATTACK_SWORD : isBazooka ? SOUNDS.BAZOOKA_FIRE : SOUNDS.PLAYER_ATTACK_GUN);
+
+            if (ammoType !== 'ammo') {
+                const newInv = [...newPlayerState.inventory];
+                for(let i = 0; i < newInv.length; i++) {
+                    if (newInv[i].item?.id === ammoType) {
+                        newInv[i].item!.quantity -= 1;
+                        if(newInv[i].item!.quantity <= 0) newInv[i].item = null;
+                        break;
+                    }
+                }
+                newPlayerState.inventory = newInv;
+            } else {
+                newPlayerState.ammo -= ammoCost;
             }
             
-            if (durabilityLoss > 0) {
-                weapon.durability -= 1;
-                if (weapon.durability <= 0) {
-                    playSound(SOUNDS.ITEM_BREAK);
-                    weapon = null;
-                    return true;
-                }
-            }
-        }
-        return false;
-    };
-
-    if (weapon && ['pistol', 'rifle', 'ak47', 'bow', 'bazooka'].includes(weapon.toolType)) {
-        const isBow = weapon.toolType === 'bow';
-        const isAk = weapon.toolType === 'ak47';
-        const isBazooka = weapon.toolType === 'bazooka';
-
-        const ammoType = isBow ? 'arrow' : isBazooka ? 'rocket' : 'ammo';
-        const ammoCost = isAk ? 2 : 1;
-        
-        const hasAmmo = (ammoType === 'ammo')
-            ? newPlayerState.ammo >= ammoCost
-            : newPlayerState.inventory.some(s => s.item?.id === ammoType && s.item.quantity >= 1);
-
-        if (!hasAmmo) {
-            newPlayerState.weapon = weapon;
-            setPlayer(newPlayerState);
-            return;
-        }
-
-        playSound(isBow ? SOUNDS.PLAYER_ATTACK_SWORD : isBazooka ? SOUNDS.BAZOOKA_FIRE : SOUNDS.PLAYER_ATTACK_GUN);
-
-        if (ammoType !== 'ammo') {
-            const newInv = [...newPlayerState.inventory];
-            for(let i = 0; i < newInv.length; i++) {
-                if (newInv[i].item?.id === ammoType) {
-                    newInv[i].item!.quantity -= 1;
-                    if(newInv[i].item!.quantity <= 0) newInv[i].item = null;
-                    break;
-                }
-            }
-            newPlayerState.inventory = newInv;
-        } else {
-            newPlayerState.ammo -= ammoCost;
-        }
-        
-        if(!isBow) { // Guns and bazooka attract zombies
-            setZombies(zs => zs.map(z => {
-                const dist = Math.hypot(newPlayerState.x - z.x, newPlayerState.y - z.y);
-                if (dist < ZOMBIE_SOUND_INVESTIGATION_RADIUS && z.state !== ZombieState.PURSUING) {
-                    return { ...z, state: ZombieState.INVESTIGATING, targetX: newPlayerState.x, targetY: newPlayerState.y, stateTimer: 0 };
-                }
-                return z;
-            }));
-        }
-
-        damageWeapon();
-        
-        const projectileSpeed = isBazooka ? 12 : 15;
-        let damage = weapon?.damage || 0;
-        const sharpness = weapon?.enchantments?.find(e => e.type === Enchantment.SHARPNESS);
-        if(sharpness) damage += sharpness.level * 4;
-
-        const angle = Math.atan2(mousePos.y - window.innerHeight / 2, mousePos.x - window.innerWidth / 2);
-        const projectileSpawnOffset = newPlayerState.size / 2 + 10;
-        const startX = newPlayerState.x + Math.cos(angle) * projectileSpawnOffset;
-        const startY = newPlayerState.y + Math.sin(angle) * projectileSpawnOffset;
-        
-        const homing = weapon?.enchantments?.find(e => e.type === Enchantment.HOMING);
-        let homingTargetId: string | undefined = undefined;
-        if (homing) {
-             const nearbyZombies = zombies.filter(z => Math.hypot(player.x - z.x, player.y - z.y) < 800);
-             if (nearbyZombies.length > 0) {
-                 homingTargetId = nearbyZombies[0].id;
-             }
-        }
-        
-        const createProjectile = (offsetAngle = 0) => ({
-            id: `proj_${Date.now()}_${Math.random()}`, x: startX, y: startY,
-            size: isBow ? 30 : isBazooka ? 20 : 10,
-            vx: Math.cos(angle + offsetAngle) * projectileSpeed,
-            vy: Math.sin(angle + offsetAngle) * projectileSpeed,
-            damage: damage,
-            owner: 'player' as 'player',
-            lifespan: 2000,
-            isArrow: isBow,
-            isRocket: isBazooka,
-            homingTargetId,
-        });
-
-        const newProjectiles = [createProjectile()];
-        if (isAk) setTimeout(() => setProjectiles(projs => [...projs, createProjectile(0.05)]), 100);
-        setProjectiles(projs => [...projs, ...newProjectiles]);
-
-    } else { // Melee
-        playSound(SOUNDS.PLAYER_ATTACK_SWORD);
-        const attackRange = 80;
-        let attackDamage = weapon?.damage || 2;
-        const sharpness = weapon?.enchantments?.find(e => e.type === Enchantment.SHARPNESS);
-        if (sharpness) {
-            attackDamage += sharpness.level * 4;
-        }
-
-        const targets = [...zombies, ...animals, ...dogs.filter(d => d.state === DogState.WILD || d.state === DogState.HOSTILE)];
-        const affectedTargetIds = new Set<string>();
-        targets.forEach(target => {
-            if (Math.hypot(newPlayerState.x - target.x, newPlayerState.y - target.y) < attackRange) {
-                affectedTargetIds.add(target.id);
-            }
-        });
-
-        if (affectedTargetIds.size > 0) {
-            const broke = damageWeapon();
-            if (broke && (weapon?.durability || 1) <= 0) { // check if it just broke
-                // Don't deal damage
-            } else {
-                setZombies(prev => prev.map(z => {
-                    if(affectedTargetIds.has(z.id)) {
-                         if (z.isBoss && z.shieldActive && weapon?.toolType !== 'sword') {
-                            playSound(SOUNDS.SHIELD_HIT);
-                            return z;
-                        }
-                        playSound(SOUNDS.ZOMBIE_HURT, { volume: 0.6 });
-                        const newHp = z.hp - attackDamage;
-                         if(z.type === ZombieType.RUBY && newHp <= 0 && Math.random() < 0.2) {
-                            setItemDrops(d => [...d, {id: `drop_ruby_${Date.now()}`, x: z.x, y: z.y, size: 20, item: ITEMS.ruby}]);
-                        }
-                        return { ...z, hp: newHp };
+            if(!isBow) { // Guns and bazooka attract zombies
+                setZombies(zs => zs.map(z => {
+                    const dist = Math.hypot(newPlayerState.x - z.x, newPlayerState.y - z.y);
+                    if (dist < ZOMBIE_SOUND_INVESTIGATION_RADIUS && z.state !== ZombieState.PURSUING) {
+                        return { ...z, state: ZombieState.INVESTIGATING, targetX: newPlayerState.x, targetY: newPlayerState.y, stateTimer: 0 };
                     }
                     return z;
                 }));
-                 setAnimals(prev => {
-                    const newDrops: ItemDrop[] = [];
-                    const remaining = prev.map(a => {
-                        if (affectedTargetIds.has(a.id)) {
-                            const newHp = a.hp - attackDamage;
-                            if(newHp <= 0) {
-                                newDrops.push({ id: `drop_food_${Date.now()}_${a.id}`, x: a.x, y: a.y, size: 20, item: ITEMS['food'] });
-                                if(a.type === AnimalType.SHEEP) newDrops.push({ id: `drop_wool_${Date.now()}_${a.id}`, x: a.x + 10, y: a.y + 10, size: 20, item: ITEMS['wool'] });
-                                return null;
+            }
+
+            damageWeapon();
+            
+            const projectileSpeed = isBazooka ? 12 : 15;
+            let damage = weapon?.damage || 0;
+            const sharpness = weapon?.enchantments?.find(e => e.type === Enchantment.SHARPNESS);
+            if(sharpness) damage += sharpness.level * 4;
+
+            const angle = Math.atan2(mousePos.y - window.innerHeight / 2, mousePos.x - window.innerWidth / 2);
+            const projectileSpawnOffset = newPlayerState.size / 2 + 10;
+            const startX = newPlayerState.x + Math.cos(angle) * projectileSpawnOffset;
+            const startY = newPlayerState.y + Math.sin(angle) * projectileSpawnOffset;
+            
+            const homing = weapon?.enchantments?.find(e => e.type === Enchantment.HOMING);
+            let homingTargetId: string | undefined = undefined;
+            if (homing) {
+                 const nearbyZombies = zombies.filter(z => Math.hypot(p.x - z.x, p.y - z.y) < 800);
+                 if (nearbyZombies.length > 0) {
+                     homingTargetId = nearbyZombies[0].id;
+                 }
+            }
+            
+            const createProjectile = (offsetAngle = 0) => ({
+                id: `proj_${Date.now()}_${Math.random()}`, x: startX, y: startY,
+                size: isBow ? 30 : isBazooka ? 20 : 10,
+                vx: Math.cos(angle + offsetAngle) * projectileSpeed,
+                vy: Math.sin(angle + offsetAngle) * projectileSpeed,
+                damage: damage,
+                owner: 'player' as 'player',
+                lifespan: 2000,
+                isArrow: isBow,
+                isRocket: isBazooka,
+                homingTargetId,
+            });
+
+            const newProjectiles = [createProjectile()];
+            if (isAk) setTimeout(() => setProjectiles(projs => [...projs, createProjectile(0.05)]), 100);
+            setProjectiles(projs => [...projs, ...newProjectiles]);
+
+        } else { // Melee
+            playSound(SOUNDS.PLAYER_ATTACK_SWORD);
+            const attackRange = 80;
+            let attackDamage = weapon?.damage || 2;
+            const sharpness = weapon?.enchantments?.find(e => e.type === Enchantment.SHARPNESS);
+            if (sharpness) {
+                attackDamage += sharpness.level * 4;
+            }
+
+            const targets = [...zombies, ...animals, ...dogs.filter(d => d.state === DogState.WILD || d.state === DogState.HOSTILE)];
+            const affectedTargetIds = new Set<string>();
+            targets.forEach(target => {
+                if (Math.hypot(newPlayerState.x - target.x, newPlayerState.y - target.y) < attackRange) {
+                    affectedTargetIds.add(target.id);
+                }
+            });
+
+            if (affectedTargetIds.size > 0) {
+                const broke = damageWeapon();
+                if (broke && (weapon?.durability || 1) <= 0) { // check if it just broke
+                    // Don't deal damage
+                } else {
+                    setZombies(prev => prev.map(z => {
+                        if(affectedTargetIds.has(z.id)) {
+                             if (z.isBoss && z.shieldActive && weapon?.toolType !== 'sword') {
+                                playSound(SOUNDS.SHIELD_HIT);
+                                return z;
                             }
-                            return { ...a, hp: newHp };
+                            playSound(SOUNDS.ZOMBIE_HURT, { volume: 0.6 });
+                            const newHp = z.hp - attackDamage;
+                             if(z.type === ZombieType.RUBY && newHp <= 0 && Math.random() < 0.2) {
+                                setItemDrops(d => [...d, {id: `drop_ruby_${Date.now()}`, x: z.x, y: z.y, size: 20, item: ITEMS.ruby}]);
+                            }
+                            return { ...z, hp: newHp };
                         }
-                        return a;
-                    }).filter((a): a is Animal => a !== null);
-                    if (newDrops.length > 0) setItemDrops(d => [...d, ...newDrops]);
-                    return remaining;
-                });
-                setDogs(prev => prev.map(d => affectedTargetIds.has(d.id) ? { ...d, hp: d.hp - attackDamage, state: DogState.HOSTILE } : d));
-                setDogs(ds => ds.map(d => {
-                    if (d.ownerId === newPlayerState.id) {
-                        const firstTargetId = Array.from(affectedTargetIds)[0];
-                        if (firstTargetId) return { ...d, state: DogState.ATTACKING, targetId: firstTargetId };
-                    }
-                    return d;
-                }));
+                        return z;
+                    }));
+                     setAnimals(prev => {
+                        const newDrops: ItemDrop[] = [];
+                        const remaining = prev.map(a => {
+                            if (affectedTargetIds.has(a.id)) {
+                                const newHp = a.hp - attackDamage;
+                                if(newHp <= 0) {
+                                    newDrops.push({ id: `drop_food_${Date.now()}_${a.id}`, x: a.x, y: a.y, size: 20, item: ITEMS['food'] });
+                                    if(a.type === AnimalType.SHEEP) newDrops.push({ id: `drop_wool_${Date.now()}_${a.id}`, x: a.x + 10, y: a.y + 10, size: 20, item: ITEMS['wool'] });
+                                    return null;
+                                }
+                                return { ...a, hp: newHp };
+                            }
+                            return a;
+                        }).filter((a): a is Animal => a !== null);
+                        if (newDrops.length > 0) setItemDrops(d => [...d, ...newDrops]);
+                        return remaining;
+                    });
+                    setDogs(prev => prev.map(d => affectedTargetIds.has(d.id) ? { ...d, hp: d.hp - attackDamage, state: DogState.HOSTILE } : d));
+                    setDogs(ds => ds.map(d => {
+                        if (d.ownerId === newPlayerState.id) {
+                            const firstTargetId = Array.from(affectedTargetIds)[0];
+                            if (firstTargetId) return { ...d, state: DogState.ATTACKING, targetId: firstTargetId };
+                        }
+                        return d;
+                    }));
+                }
             }
         }
-    }
-    
-    newPlayerState.weapon = weapon;
-    setPlayer(newPlayerState);
-  }, [player, mousePos, zombies, animals, dogs, handleExplosion, setZombies, setAnimals, setDogs, setItemDrops]);
+        
+        newPlayerState.weapon = weapon;
+        return newPlayerState;
+    });
+  }, [player, mousePos, zombies, animals, dogs, handleExplosion]);
 
     const handleEatFood = useCallback(() => {
         setPlayer(p => {
@@ -2681,26 +2642,11 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                 
                 let newHp = p.hp;
                 let newStamina = p.stamina;
-                let newVendorDiscount = p.vendorDiscount;
 
                 if (consumable.heals) {
                     newHp = Math.max(0, Math.min(p.maxHp, p.hp + consumable.heals));
                     if (newHp <= 0) {
-                        playSound(SOUNDS.PLAYER_DEATH);
-                        return {
-                            ...p,
-                            hp: p.maxHp,
-                            stamina: newStamina,
-                            inventory: newInventory,
-                            x: WORLD_WIDTH / 2,
-                            y: WORLD_HEIGHT / 2,
-                            vx: 0,
-                            vy: 0,
-                            lavaDamageTimer: 0,
-                            lastDamageTime: 0,
-                            slowEffect: undefined,
-                            vendorDiscount: newVendorDiscount,
-                        };
+                        setGameState(GameState.GAME_OVER);
                     } else if (consumable.heals < 0) {
                         playSound(SOUNDS.PLAYER_HURT);
                     }
@@ -2709,20 +2655,12 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                     newStamina = Math.min(p.maxStamina, p.stamina + consumable.stamina);
                 }
 
-                if (item.id === 'stamina_potion') {
-                    newVendorDiscount = {
-                        endTime: Date.now() + 60000, // 1 minute
-                        factor: 0.1, // 10% discount
-                    };
-                }
-
                 return { 
                     ...p, 
                     hp: newHp, 
                     stamina: newStamina,
                     inventory: newInventory, 
-                    lastDamageTime: (consumable.heals || 0) < 0 ? Date.now() : p.lastDamageTime,
-                    vendorDiscount: newVendorDiscount,
+                    lastDamageTime: (consumable.heals || 0) < 0 ? Date.now() : p.lastDamageTime 
                 };
             }
             return p;
@@ -2761,48 +2699,6 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
         setPlayer(p => ({...p, energy: p.maxEnergy}));
     }, []);
 
-  const handleDropItem = useCallback(() => {
-      setPlayer(p => {
-          const activeSlot = p.inventory[p.activeSlot];
-          if (!activeSlot?.item) {
-              return p;
-          }
-
-          const angle = Math.atan2(mousePos.y - window.innerHeight / 2, mousePos.x - window.innerWidth / 2);
-          const dropDist = TILE_SIZE * 1.5;
-          const dropX = p.x + Math.cos(angle) * dropDist;
-          const dropY = p.y + Math.sin(angle) * dropDist;
-
-          const itemToDrop: Item = { ...activeSlot.item, quantity: 1 };
-
-          const newItemDrop: ItemDrop = {
-              id: `drop_${itemToDrop.id}_${Date.now()}`,
-              x: dropX,
-              y: dropY,
-              size: 20,
-              item: itemToDrop,
-          };
-
-          setItemDrops(drops => [...drops, newItemDrop]);
-
-          const newInventory = p.inventory.map((slot, index) => {
-              if (index === p.activeSlot) {
-                  const newItem = slot.item ? { ...slot.item } : null;
-                  if (newItem) {
-                      newItem.quantity -= 1;
-                      if (newItem.quantity <= 0) {
-                          return { item: null };
-                      }
-                      return { item: newItem };
-                  }
-              }
-              return slot;
-          });
-
-          return { ...p, inventory: newInventory };
-      });
-  }, [mousePos]);
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         const key = e.key.toLowerCase();
@@ -2820,12 +2716,10 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                     handleEatFood();
                 } else if (key === 'f') {
                     handleAttack();
-                } else if (key === 'x') {
-                    handleDropItem();
                 } else if (key === 'z') {
                     const activeItem = player.inventory[player.activeSlot]?.item;
                     if (activeItem && activeItem.type === 'block') {
-                         if (['workbench', 'chest', 'bed', 'furnace', 'enchanting_table', 'tnt'].includes(activeItem.id)) return; // These are placed with 'E'
+                         if (['workbench', 'chest', 'furnace', 'enchanting_table', 'tnt'].includes(activeItem.id)) return; // These are placed with 'E'
                         const angle = Math.atan2(mousePos.y - window.innerHeight / 2, mousePos.x - window.innerWidth / 2);
                         const placementDist = TILE_SIZE * 1.5;
                         const targetX = player.x + Math.cos(angle) * placementDist;
@@ -2907,7 +2801,7 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('contextmenu', handleContextMenu);
     };
-  }, [player, mousePos, zombies, gameState, creativeMode, camera, handleAttack, handleEatFood, buildings, resources, handleDropItem]);
+  }, [player, mousePos, zombies, gameState, creativeMode, camera, handleAttack, handleEatFood, buildings, resources]);
 
     useEffect(() => {
         const previousGameState = new Map<GameState, boolean>();
@@ -2927,6 +2821,11 @@ const handleExplosion = useCallback((x: number, y: number, radius: number, damag
                     break;
                 case GameState.FURNACE:
                     playSound(SOUNDS.FURNACE_FIRE);
+                    break;
+                case GameState.GAME_OVER:
+                    stopAllSounds();
+                    playSound(SOUNDS.PLAYER_DEATH);
+                    setTimeout(() => playSound(SOUNDS.GAME_OVER), 700);
                     break;
             }
              if (gameState === GameState.PLAYING) {

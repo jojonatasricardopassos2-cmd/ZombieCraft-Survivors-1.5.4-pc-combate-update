@@ -44,11 +44,11 @@ export const CRATER_DURATION_MS = 120000; // 2 minutes
 export const ZOMBIE_DETECTION_RADIUS = 350;
 export const ZOMBIE_SOUND_INVESTIGATION_RADIUS = 600;
 
-export const ZOMBIE_STATS: { [key: string]: { color: string; size: number; hp: number; damage: number; speed: number; spawnChance?: number; slowAttack?: { duration: number, factor: number } } } = {
+export const ZOMBIE_STATS: { [key: string]: { color: string; size: number; hp: number; damage: number; speed: number; spawnChance?: number; projectileDamage?: number; slowAttack?: { duration: number, factor: number } } } = {
     NORMAL: { color: '#2C5F2D', size: 40, hp: 50, damage: 5, speed: 2, spawnChance: 0.8 },
     GIANT: { color: '#1A3A1A', size: 60, hp: 150, damage: 15, speed: 1.5, spawnChance: 0.15 },
     IMMORTAL: { color: '#0A1A0A', size: 45, hp: 500, damage: 10, speed: 2.5, spawnChance: 0.05 },
-    BOSS: { color: '#8B0000', size: 150, hp: 1000, damage: 30, speed: 1 },
+    BOSS: { color: '#8B0000', size: 150, hp: 1000, damage: 30, speed: 1, projectileDamage: 20 },
     RUBY: { color: '#E0115F', size: 50, hp: 200, damage: 20, speed: 2.2, spawnChance: 1.0 },
     DESERT: { color: '#C2B280', size: 40, hp: 40, damage: 5, speed: 2.8 },
     SNOW: { color: '#ADD8E6', size: 45, hp: 70, damage: 7, speed: 1.8, slowAttack: { duration: 3000, factor: 0.5 } },
@@ -85,7 +85,6 @@ export const RESOURCE_DATA: { [key in ResourceType | string]: { color: string; r
     [ResourceType.RUBY]: { color: '#DC143C', requiredTier: ToolTier.DIAMOND, baseCollectTime: 15000 },
     [ResourceType.RUBY_CRYSTAL]: { color: '#FF69B4', requiredTier: ToolTier.DIAMOND, baseCollectTime: 12000 },
     'wood': { color: '#D2B48C', requiredTier: ToolTier.HAND, baseCollectTime: 1000 }, // For refined wood blocks
-    'indestructible': { color: '#1C1C1E', requiredTier: ToolTier.RUBY, baseCollectTime: Infinity },
 };
 
 // FIX: Added 'color' property to the BIOME_DATA type to match the object's structure.
@@ -106,7 +105,6 @@ export const BLOCK_HP: { [key: string]: number } = {
     'gold': 80,
     'diamond': 90,
     'ruby': 100,
-    'indestructible': Infinity,
 };
 
 export const ITEMS: { [id: string]: Item | Tool | Armor | Consumable } = {
@@ -156,7 +154,6 @@ export const ITEMS: { [id: string]: Item | Tool | Armor | Consumable } = {
     'pickaxe_iron': { id: 'pickaxe_iron', name: 'Iron Pickaxe', name_pt: 'Picareta de Ferro', type: 'tool', toolType: 'pickaxe', tier: ToolTier.IRON, collectSpeed: 2, quantity: 1, stackable: false, maxStack: 1, durability: 251, maxDurability: 251 },
     'pickaxe_gold': { id: 'pickaxe_gold', name: 'Gold Pickaxe', name_pt: 'Picareta de Ouro', type: 'tool', toolType: 'pickaxe', tier: ToolTier.GOLD, collectSpeed: 2.8, quantity: 1, stackable: false, maxStack: 1, durability: 33, maxDurability: 33 },
     'pickaxe_diamond': { id: 'pickaxe_diamond', name: 'Diamond Pickaxe', name_pt: 'Picareta de Diamante', type: 'tool', toolType: 'pickaxe', tier: ToolTier.DIAMOND, collectSpeed: 4, quantity: 1, stackable: false, maxStack: 1, durability: 1562, maxDurability: 1562 },
-    'pickaxe_ruby': { id: 'pickaxe_ruby', name: 'Ruby Pickaxe', name_pt: 'Picareta de Rubi', type: 'tool', toolType: 'pickaxe', tier: ToolTier.RUBY, collectSpeed: 6, quantity: 1, stackable: false, maxStack: 1, durability: 2032, maxDurability: 2032 },
     
     // Tools - Axes
     'axe_wood': { id: 'axe_wood', name: 'Wood Axe', name_pt: 'Machado de Madeira', type: 'tool', toolType: 'axe', tier: ToolTier.WOOD, collectSpeed: 1.5, quantity: 1, stackable: false, maxStack: 1, durability: 60, maxDurability: 60 },
@@ -194,7 +191,6 @@ export const ITEMS: { [id: string]: Item | Tool | Armor | Consumable } = {
     'gold_block': { id: 'gold_block', name: 'Gold Block', name_pt: 'Bloco de Ouro', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
     'diamond_block': { id: 'diamond_block', name: 'Diamond Block', name_pt: 'Bloco de Diamante', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
     'ruby_block': { id: 'ruby_block', name: 'Ruby Block', name_pt: 'Bloco de Rubi', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
-    'indestructible_block': { id: 'indestructible_block', name: 'Indestructible Block', name_pt: 'Bloco Indestrutível', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
 
     'wood_door': { id: 'wood_door', name: 'Wood Door', name_pt: 'Porta de Madeira', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
     'iron_door': { id: 'iron_door', name: 'Iron Door', name_pt: 'Porta de Ferro', type: 'block', quantity: 1, stackable: true, maxStack: 64 },
@@ -277,7 +273,6 @@ export const CRAFTING_RECIPES: { [itemId: string]: { [resourceId: string]: numbe
     'pickaxe_iron': { 'wood': 2, 'iron_ingot': 3 },
     'pickaxe_gold': { 'wood': 2, 'gold_ingot': 3 },
     'pickaxe_diamond': { 'wood': 2, 'diamond': 3 },
-    'pickaxe_ruby': { 'wood': 2, 'ruby': 3 },
 
     'axe_wood': { 'wood': 2, 'refined_wood': 3 },
     'axe_stone': { 'wood': 2, 'stone': 3 },
@@ -304,7 +299,6 @@ export const CRAFTING_RECIPES: { [itemId: string]: { [resourceId: string]: numbe
     'armor_gold': { 'gold_ingot': 15 },
     'armor_diamond': { 'diamond': 20 },
     'armor_ruby': { 'ruby': 20 },
-    'indestructible_block': { 'diamond': 10, 'ruby': 10 },
 };
 
 export const PORTAL_REQUIREMENTS: { [itemId: string]: number } = {
